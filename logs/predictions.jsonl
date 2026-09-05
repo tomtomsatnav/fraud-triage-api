@@ -1,0 +1,7 @@
+{"timestamp": "2026-09-03T11:51:57.090818+00:00", "features": [3.2, -1.0, 0.3, 2.4, -0.5, 1.4, 4.0, -0.2], "probability": 0.75, "flagged": true, "threshold": 0.2, "model_alias": "champion"}
+{"timestamp": "2026-09-03T11:52:03.939464+00:00", "features": [1.2, -1.0, 0.3, 2.4, -0.5, 1.4, 4.0, -0.2], "probability": 0.77, "flagged": true, "threshold": 0.2, "model_alias": "champion"}
+{"timestamp": "2026-09-03T11:52:07.149735+00:00", "features": [1.2, -1.0, 0.3, 1.4, -0.5, 1.4, 4.0, -0.2], "probability": 0.76, "flagged": true, "threshold": 0.2, "model_alias": "champion"}
+{"timestamp": "2026-09-03T11:52:08.777080+00:00", "features": [1.2, -1.0, 0.3, 1.4, -0.5, 1.4, 4.0, -0.2], "probability": 0.76, "flagged": true, "threshold": 0.2, "model_alias": "champion"}
+{"timestamp": "2026-09-03T11:52:12.012036+00:00", "features": [1.2, -1.0, 0.3, 1.4, -0.5, 1.4, 0.0, -0.2], "probability": 0.62, "flagged": true, "threshold": 0.2, "model_alias": "champion"}
+{"timestamp": "2026-09-03T11:52:15.038633+00:00", "features": [1.2, -1.0, 0.3, 1.4, -0.5, 1.4, 0.0, -3.2], "probability": 0.69, "flagged": true, "threshold": 0.2, "model_alias": "champion"}
+{"timestamp": "2026-09-03T11:52:15.831904+00:00", "features": [1.2, -1.0, 0.3, 1.4, -0.5, 1.4, 0.0, -3.2], "probability": 0.69, "flagged": true, "threshold": 0.2, "model_alias": "champion"}
