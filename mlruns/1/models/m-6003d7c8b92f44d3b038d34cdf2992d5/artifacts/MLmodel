@@ -1,0 +1,23 @@
+artifact_path: /Users/tom/fraud-triage-api/mlruns/1/models/m-6003d7c8b92f44d3b038d34cdf2992d5/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.skops
+    predict_fn: predict
+    python_version: 3.14.6
+  sklearn:
+    code: null
+    pickled_model: model.skops
+    serialization_format: skops
+    sklearn_version: 1.9.0
+    skops_trusted_types: null
+mlflow_version: 3.15.2
+model_id: m-6003d7c8b92f44d3b038d34cdf2992d5
+model_size_bytes: 4502326
+model_uuid: m-6003d7c8b92f44d3b038d34cdf2992d5
+prompts: null
+run_id: 957d380e284f47faba153381c6e06b70
+utc_time_created: '2026-09-05 11:06:25.654142'

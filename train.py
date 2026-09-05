@@ -7,7 +7,7 @@ import mlflow.sklearn
 
 
 
-THRESHOLD = 0.5
+THRESHOLD = 0.2
 mlflow.set_experiment("fraud-triage")
 
 with mlflow.start_run(run_name=f"rf-threshold-{THRESHOLD}"):
