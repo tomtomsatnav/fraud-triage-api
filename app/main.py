@@ -42,5 +42,6 @@ def predict(payload: ClaimFeatures):
         f.write(json.dumps(record) + "\n")
     return {
         "fraud_probability": probability,
-        "flagged": flagged
+        "flagged": flagged,
+        "threshold": THRESHOLD
     }
