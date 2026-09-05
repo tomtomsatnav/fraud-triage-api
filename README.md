@@ -1,5 +1,7 @@
 # Fraud Triage API
 
+[![CI](https://github.com/tomtomsatnav/fraud-triage-api/actions/workflows/ci.yml/badge.svg)](https://github.com/tomtomsatnav/fraud-triage-api/actions/workflows/ci.yml)
+
 A small end-to-end ML service that scores insurance-style claims for fraud risk and
 flags the ones worth a human review. It covers the full loop: train a model, track it
 in MLflow, promote a version via a registry alias, bake the artefact into a container,
@@ -21,6 +23,7 @@ realistic scaffold rather than a production fraud detector.
 - [Prediction logging](#prediction-logging)
 - [Drift monitoring](#drift-monitoring)
 - [Tests](#tests)
+- [Continuous integration](#continuous-integration)
 - [Docker](#docker)
 - [Project layout](#project-layout)
 - [Limitations and trade-offs](#limitations-and-trade-offs)
@@ -242,9 +245,30 @@ pytest
 
 `pytest.ini` sets `pythonpath = .` so `app` imports without installation. The suite in
 [tests/test_api.py](tests/test_api.py) covers the health probe, the shape and range of
-a prediction, `422` on the wrong feature count, and the presence of the threshold in
-the response body. Tests load the real artefact from `model_artifact/`, so no mocking
-is involved — and they append to `logs/predictions.jsonl` as a side effect.
+a prediction, `422` on the wrong feature count, that the response echoes the threshold
+actually applied, and that `flagged` agrees with that threshold. Tests load the real
+artefact from `model_artifact/`, so no mocking is involved — and they append to
+`logs/predictions.jsonl` as a side effect.
+
+`starlette`'s `TestClient` needs `httpx2` at test time; it is pinned in
+`requirements.txt` alongside `pytest` rather than split into a separate dev file, which
+does mean both land in the Docker image.
+
+---
+
+## Continuous integration
+
+[.github/workflows/ci.yml](.github/workflows/ci.yml) runs on every push to `main` and
+on every pull request:
+
+| Job      | Does                                                                 |
+|----------|----------------------------------------------------------------------|
+| `test`   | Python 3.12, `pip install -r requirements.txt`, `pytest -v`           |
+| `docker` | Builds the image — gated on `test` passing, so a red suite blocks it  |
+
+The suite exercises the real artefact rather than a mock, so a green `test` job also
+confirms the model still deserialises on the CI interpreter — which is the check that
+matters most when the training and serving Python versions differ.
 
 ---
 
@@ -262,10 +286,13 @@ docker run -p 8000:8000 -e FRAUD_THRESHOLD=0.35 fraud-triage-api
 ```
 
 The image copies only `app/` and `model_artifact/`; `.dockerignore` keeps `.venv/`,
-`mlruns/`, `mlflow.db`, and `logs/` out. Note the base image is `python:3.12-slim`
-while the artefact was produced under 3.14 — the model loads, but if you hit a
-deserialisation warning, align the base image with the `python_version` recorded in
-[model_artifact/MLmodel](model_artifact/MLmodel).
+`mlruns/`, `mlflow.db`, and `logs/` out.
+
+The base image is `python:3.12-slim` while the artefact was produced under 3.14 — see
+`python_version` in [model_artifact/MLmodel](model_artifact/MLmodel). The skops artefact
+loads cleanly across that gap and the full suite passes on 3.12, so the mismatch is
+recorded rather than a defect; CI pins the same 3.12 so any future divergence shows up
+as a failing build rather than a surprise in production.
 
 ---
 
@@ -277,6 +304,7 @@ train.py             Trains the RF, logs params/metrics, registers "fraud-triage
 export_model.py      Downloads models:/fraud-triage@champion into model_artifact/
 monitor.py           Z-score feature-drift check over the prediction log
 tests/test_api.py    API tests against the real artefact
+.github/workflows/ci.yml   CI: pytest on 3.12, then a Docker build
 model_artifact/      Exported champion (v6, skops) — baked into the image
 mlruns/, mlflow.db   Local MLflow tracking + registry state
 logs/predictions.jsonl   Append-only prediction log
@@ -338,5 +366,13 @@ the point; the model itself is a placeholder.
 
 **Operational gaps.** No authentication, rate limiting, or request size limits on
 `/predict`. Configuration is read once at import, so a threshold change needs a
-restart. The Docker base image is `python:3.12-slim` while the artefact was produced
-under 3.14 — it loads today, but the versions should be aligned.
+restart. The Docker base image and CI both pin `python:3.12` while the artefact was
+produced under 3.14; the suite passes across that gap, but training and serving should
+still be pinned to one interpreter so the compatibility is guaranteed rather than
+observed.
+
+**CI installs the full requirements file.** `requirements.txt` is a flat `pip freeze`
+covering runtime, training, and test dependencies together, so CI installs MLflow,
+matplotlib, and pandas just to run five API tests, and the Docker image ships `pytest`
+and `httpx2` it never uses. Splitting it into `requirements.txt` /
+`requirements-dev.txt` would cut both the CI time and the image size.
