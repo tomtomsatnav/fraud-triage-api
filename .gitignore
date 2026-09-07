@@ -1,3 +1,12 @@
 .venv/
 __pycache__/
 *.pkl
+
+# Local MLflow tracking + registry state. Not portable: mlflow.db records
+# absolute storage_location paths for this checkout, so it is useless on any
+# other machine and leaks local filesystem layout. Recreate with train.py.
+mlflow.db
+mlruns/
+
+# Runtime prediction log, written by /predict and by the test suite.
+logs/
