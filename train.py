@@ -8,6 +8,13 @@ import mlflow.sklearn
 
 
 THRESHOLD = 0.2
+
+# Named explicitly to match export_model.py. MLflow 3 happens to default to
+# sqlite:///mlflow.db relative to the working directory, so this is the store training
+# already used -- but relying on a library default to agree with the URI the export
+# script hardcodes is a coincidence, not a contract, and it changed once already:
+# MLflow 2 defaulted to the ./mlruns file store, which cannot host a registry at all.
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
 mlflow.set_experiment("fraud-triage")
 
 with mlflow.start_run(run_name=f"rf-threshold-{THRESHOLD}"):
