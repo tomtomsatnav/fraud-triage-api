@@ -131,6 +131,33 @@ Scores a single claim.
 
 - `422` — `features` missing, or not exactly 8 numbers.
 
+### `GET /drift`
+
+Runs the drift check over the current prediction log and returns it as JSON, so the
+monitor is reachable without shell access to the container.
+
+```json
+{
+  "features": [
+    { "feature": 0, "train_mean": -0.0023, "live_mean": 1.4857, "z_score": 1.4780, "drifted": false }
+  ],
+  "any_drift": false
+}
+```
+
+| Field       | Meaning                                                          |
+|-------------|------------------------------------------------------------------|
+| `features`  | One object per feature: train mean, live mean, z-score, verdict    |
+| `any_drift` | `true` when any feature is past `z > 2`                           |
+
+An empty or absent log yields `{"features": [], "any_drift": false}` rather than an
+error — no traffic is not the same as no drift, and the caller has to tell them apart
+by the empty list.
+
+This endpoint regenerates the 10,000-row training set on **every** call to recover the
+reference distribution, so it is far heavier than `/predict` and is not suitable for
+polling on a tight interval. See [Limitations](#limitations-and-trade-offs).
+
 ---
 
 ## Configuration
@@ -242,16 +269,18 @@ for the durability and concurrency caveats.
 python monitor.py
 ```
 
-Rebuilds the training distribution with the same seed, reads the feature vectors out
-of `logs/predictions.jsonl`, and for each of the 8 features compares the live mean to
-the training mean in units of training standard deviation:
+`monitor.py` exposes `check_drift(log_path, z_threshold)`, which rebuilds the training
+distribution with the same seed, reads the feature vectors out of
+`logs/predictions.jsonl`, and for each of the 8 features compares the live mean to the
+training mean in units of training standard deviation. It returns one dict per feature,
+which the CLI prints as-is:
 
 ```
-feature 0: train  0.02 live  1.31 z= 1.29 ok
-feature 3: train -0.01 live  2.40 z= 2.41 DRIFT
+{'feature': 0, 'train_mean': -0.0023, 'live_mean': 1.4857, 'z_score': 1.4780, 'drifted': False}
 ```
 
-Anything past `z > 2` is reported as `DRIFT`. This is a deliberately blunt check — a
+The same function backs [`GET /drift`](#get-drift), so the CLI and the endpoint cannot
+disagree. Anything past `z > 2` is reported as drifted. This is a deliberately blunt check — a
 mean shift only, no distribution shape, no per-feature history, and it needs enough
 logged traffic to mean anything. It is a smoke alarm, not a monitoring stack.
 
@@ -305,8 +334,11 @@ Override the threshold at run time:
 docker run -p 8000:8000 -e FRAUD_THRESHOLD=0.35 fraud-triage-api
 ```
 
-The image copies only `app/` and `model_artifact/`; `.dockerignore` keeps `.venv/`,
-`mlruns/`, `mlflow.db`, and `logs/` out.
+The image copies `app/`, `model_artifact/`, and `monitor.py`; `.dockerignore` keeps
+`.venv/`, `mlruns/`, `mlflow.db`, and `logs/` out. `monitor.py` is there because
+`app/main.py` imports `check_drift` at module scope, so leaving it out makes the
+container fail on startup — and the CI `docker` job only *builds* the image, so it
+would not catch that.
 
 The base image is `python:3.12-slim` while the artefact was produced under 3.14 — see
 `python_version` in [model_artifact/MLmodel](model_artifact/MLmodel). The skops artefact
@@ -322,7 +354,7 @@ as a failing build rather than a surprise in production.
 app/main.py          FastAPI service: /health, /predict, JSONL logging
 train.py             Trains the RF, logs params/metrics, registers "fraud-triage"
 export_model.py      Downloads models:/fraud-triage@champion into model_artifact/
-monitor.py           Z-score feature-drift check over the prediction log
+monitor.py           check_drift() behind /drift, plus a CLI — baked into the image
 plot_tradeoff.py     Threshold sweep behind the default cut-off, writes docs/tradeoff.png
 tests/test_api.py    API tests against the real artefact
 .github/workflows/ci.yml   CI: pytest on 3.12, then a Docker build
@@ -361,6 +393,16 @@ instead of a file would all decouple it.
 **Logs do not survive the container.** `logs/` is in `.dockerignore` and nothing mounts
 a volume over it, so a containerised instance writes its audit trail into an ephemeral
 layer and loses it on exit. The log is only durable in local development.
+
+**`/drift` rebuilds the reference distribution on every request.** Each call to the
+endpoint re-runs `make_classification` for 10,000 rows purely to recover the training
+means and standard deviations, then re-reads the whole prediction log from disk. Nothing
+is cached between calls, so the cost scales with traffic on an endpoint whose answer
+changes only as slowly as the log grows. Computing the reference statistics once at
+import, or persisting them next to the model artefact, would reduce the request to a
+pass over the log — and in the container the log is ephemeral anyway, so a fresh
+instance reports `any_drift: false` from an empty list until it has served enough
+traffic of its own.
 
 **Drift is computed from too few rows to be meaningful.** `monitor.py` currently reads
 7 logged predictions and compares them against 10,000 training rows. A z-score on a
