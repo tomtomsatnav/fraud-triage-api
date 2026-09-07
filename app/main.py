@@ -7,6 +7,7 @@ from pydantic import Field
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from monitor import check_drift
 
 LOG_PATH = Path("logs/predictions.jsonl")
 LOG_PATH.parent.mkdir(exist_ok=True)
@@ -44,4 +45,12 @@ def predict(payload: ClaimFeatures):
         "fraud_probability": probability,
         "flagged": flagged,
         "threshold": THRESHOLD
+    }
+    
+@app.get("/drift")
+def drift():
+    results = check_drift()
+    return {
+        "features": results,
+        "any_drift": any(r["drifted"] for r in results),
     }

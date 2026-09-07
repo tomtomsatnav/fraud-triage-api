@@ -28,3 +28,10 @@ def test_predict_flag_agrees_with_threshold():
     response = client.post("/predict", json={"features": [0.1] * 8})
     body = response.json()
     assert body["flagged"] == (body["fraud_probability"] >= body["threshold"])
+
+def test_drift_returns_summary():
+    response = client.get("/drift")
+    assert response.status_code == 200
+    body = response.json()
+    assert "any_drift" in body
+    assert isinstance(body["features"], list)

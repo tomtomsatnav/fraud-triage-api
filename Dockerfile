@@ -7,6 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ app/
 COPY model_artifact/ model_artifact/
+COPY monitor.py .
 
 EXPOSE 8000
 
