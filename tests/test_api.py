@@ -1,5 +1,5 @@
 from fastapi.testclient import TestClient
-from app.main import app, THRESHOLD
+from app.main import app, scorer
 
 client = TestClient(app)
 
@@ -22,7 +22,7 @@ def test_predict_returns_wrong_feature_count():
 def test_predict_includes_threshold_used():
     response = client.post("/predict", json={"features": [0.1] * 8})
     body = response.json()
-    assert body["threshold"] == THRESHOLD
+    assert body["threshold"] == scorer.threshold
 
 def test_predict_flag_agrees_with_threshold():
     response = client.post("/predict", json={"features": [0.1] * 8})
