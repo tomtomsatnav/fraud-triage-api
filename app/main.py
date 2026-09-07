@@ -11,10 +11,12 @@ from app.scorer import FraudScorer
 LOG_PATH = Path("logs/predictions.jsonl")
 LOG_PATH.parent.mkdir(exist_ok=True)
 
-THRESHOLD = float(os.getenv("FRAUD_THRESHOLD", "0.2"))
 MODEL_PATH = os.getenv("MODEL_PATH", "model_artifact")
 
-scorer = FraudScorer(MODEL_PATH, THRESHOLD)
+# scorer.threshold is the single source of truth: it decides the flag, so it is also
+# what /health and /predict report and what the log records. Reading the env into a
+# second module-level constant let the two drift apart.
+scorer = FraudScorer(MODEL_PATH, float(os.getenv("FRAUD_THRESHOLD", "0.2")))
 class ClaimFeatures(BaseModel):
     features: Annotated[list[float], Field(min_length=8, max_length=8)]
 
@@ -24,7 +26,7 @@ app = FastAPI()
 def health():
     return {
         "status": "ok",
-        "threshold": THRESHOLD
+        "threshold": scorer.threshold
         }
 @app.post("/predict")
 def predict(payload: ClaimFeatures):
@@ -34,7 +36,7 @@ def predict(payload: ClaimFeatures):
         "features": payload.features,
         "probability": probability,
         "flagged": flagged,
-        "threshold": THRESHOLD,
+        "threshold": scorer.threshold,
         "model_alias": "champion",
     }
     with LOG_PATH.open("a") as f:
@@ -42,7 +44,7 @@ def predict(payload: ClaimFeatures):
     return {
         "fraud_probability": probability,
         "flagged": flagged,
-        "threshold": THRESHOLD
+        "threshold": scorer.threshold
     }
     
 @app.get("/drift")
