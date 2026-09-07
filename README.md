@@ -435,8 +435,41 @@ produced under 3.14; the suite passes across that gap, but training and serving 
 still be pinned to one interpreter so the compatibility is guaranteed rather than
 observed.
 
+**`requirements.txt` is a `pip freeze`, so it pins an environment rather than
+describing one.** All 96 lines are bare `==` pins with **no** environment markers — not
+one `; sys_platform == ...` or `; python_version < ...` among them — because that is
+what `pip freeze` emits: the exact contents of the interpreter it was run against, on
+the machine it was run on. Two consequences show up here already. The pins were frozen
+from a different interpreter than the one this checkout uses (`.venv` is Python 3.13.7,
+while the README describes the artefact as produced under 3.14 and both CI and the image
+pin 3.12), so the lockfile and the documented environment disagree on day one. And a
+freeze taken on macOS records the wheels macOS resolved; anything a Linux build would
+need but macOS never installed is simply absent, and the CI job papers over it only
+because the dependency set happens to be portable. Declaring direct dependencies in
+`pyproject.toml` and compiling a real lockfile per target — `pip-compile`, `uv lock` —
+would make the environment reproducible instead of merely recorded.
+
 **CI installs the full requirements file.** `requirements.txt` is a flat `pip freeze`
 covering runtime, training, and test dependencies together, so CI installs MLflow,
 matplotlib, and pandas just to run five API tests, and the Docker image ships `pytest`
 and `httpx2` it never uses. Splitting it into `requirements.txt` /
 `requirements-dev.txt` would cut both the CI time and the image size.
+
+**The scripts are research code, and only became importable when something forced it.**
+`train.py`, `export_model.py`, and `plot_tradeoff.py` are all straight-line modules:
+between them they define zero functions and carry no `if __name__ == "__main__"` guard,
+so the work happens as a side effect of import. That is fine while the only caller is a
+human typing `python train.py`, and it is exactly what makes the code unreusable the
+moment anything else needs a piece of it — importing `train` to reuse its data generator
+would retrain a model and write to MLflow on the import line.
+
+`monitor.py` is the one exception, and it is instructive that it is an exception. It had
+the same shape until `/drift` needed to call the drift check from inside a request; only
+then was the logic lifted into `check_drift()` with the printing split out behind a main
+guard. The refactor was forced by a consumer, not chosen up front, and the other three
+scripts still have the original shape because nothing has needed them yet. This is the
+ordinary form of the research-to-production gap: notebook-shaped code runs correctly and
+produces the right numbers, but has no seam to call it through, and the seam gets cut
+only where something pulls on it. The general fix is the one applied to `monitor.py` —
+pure functions that take their inputs as arguments and return values, with I/O and CLI
+wiring at the edges — applied before a consumer demands it rather than after.
