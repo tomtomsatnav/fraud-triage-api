@@ -357,7 +357,8 @@ as a failing build rather than a surprise in production.
 ## Project layout
 
 ```
-app/main.py          FastAPI service: /health, /predict, JSONL logging
+app/main.py          FastAPI service: /health, /predict, /drift, JSONL logging
+app/scorer.py        FraudScorer: loads the artefact, turns features into (prob, flag)
 train.py             Trains the RF, logs params/metrics, registers "fraud-triage"
 export_model.py      Downloads models:/fraud-triage@champion into model_artifact/
 monitor.py           check_drift() behind /drift, plus a CLI — baked into the image
@@ -486,3 +487,10 @@ produces the right numbers, but has no seam to call it through, and the seam get
 only where something pulls on it. The general fix is the one applied to `monitor.py` —
 pure functions that take their inputs as arguments and return values, with I/O and CLI
 wiring at the edges — applied before a consumer demands it rather than after.
+
+The service layer has since had the same treatment, this time without waiting to be
+forced: model loading and scoring moved out of `app/main.py` into `FraudScorer` in
+[app/scorer.py](app/scorer.py), so `main.py` is left doing HTTP, logging, and
+configuration while the decision itself — `predict_proba` and the threshold comparison —
+sits behind one `score()` call that can be exercised without starting a web server. The
+four root scripts are still the outstanding case.
