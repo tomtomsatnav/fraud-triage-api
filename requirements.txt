@@ -31,6 +31,7 @@ graphql-core==3.2.12
 graphql-relay==3.2.0
 gunicorn==26.2.0
 h11==0.16.0
+httpcore2==2.12.0
 httpx2==2.12.0
 huey==3.3.4
 idna==3.19
@@ -83,6 +84,7 @@ SQLAlchemy==2.0.52
 sqlparse==0.6.0
 starlette==1.6.0
 threadpoolctl==3.6.0
+truststore==0.10.4
 typing-inspection==0.4.4
 typing_extensions==4.16.0
 tzdata==2026.3

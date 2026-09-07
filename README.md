@@ -143,7 +143,7 @@ requires a process restart.
 | `FRAUD_THRESHOLD` | `0.2`            | Probability at or above which a claim is flagged        |
 | `MODEL_PATH`      | `model_artifact` | Directory holding the MLflow sklearn model to load      |
 
-The threshold is deliberately low. On a ~1% fraud base rate the default `0.5` cut-off
+The threshold is deliberately low. On a ~1.4% fraud base rate the default `0.5` cut-off
 buys precision at the cost of recall, and a triage queue would rather over-flag than
 miss cases; `train.py` logs precision/recall/F1 at `0.2` so the trade-off is visible
 in MLflow.
@@ -151,6 +151,26 @@ in MLflow.
 ```bash
 FRAUD_THRESHOLD=0.35 uvicorn app.main:app
 ```
+
+### Where the default comes from
+
+[plot_tradeoff.py](plot_tradeoff.py) sweeps the cut-off from `0.05` to `0.95` and plots
+precision, recall, and F1 at each step:
+
+```bash
+python plot_tradeoff.py          # writes docs/tradeoff.png
+```
+
+![Precision, recall, and F1 against decision threshold](docs/tradeoff.png)
+
+F1 peaks at `0.15` (0.56) and is nearly flat through `0.2` (0.55), so the default gives
+up a negligible amount of F1 for a slightly cleaner queue. Precision is still climbing
+steeply across that range while recall has already begun to fall — which is the argument
+for putting the cut-off well below `0.5` rather than a claim that `0.2` is optimal.
+
+The script fits its own `RandomForestClassifier` from the same generator and seed as
+`train.py` instead of loading `model_artifact/`, so it shows the shape of the trade-off
+for this data rather than measuring the served champion.
 
 ---
 
@@ -303,9 +323,11 @@ app/main.py          FastAPI service: /health, /predict, JSONL logging
 train.py             Trains the RF, logs params/metrics, registers "fraud-triage"
 export_model.py      Downloads models:/fraud-triage@champion into model_artifact/
 monitor.py           Z-score feature-drift check over the prediction log
+plot_tradeoff.py     Threshold sweep behind the default cut-off, writes docs/tradeoff.png
 tests/test_api.py    API tests against the real artefact
 .github/workflows/ci.yml   CI: pytest on 3.12, then a Docker build
 model_artifact/      Exported champion (v6, skops) — baked into the image
+docs/tradeoff.png    Precision/recall/F1 curve referenced from Configuration
 mlruns/, mlflow.db   Local MLflow tracking + registry state
 logs/predictions.jsonl   Append-only prediction log
 Dockerfile           python:3.12-slim + uvicorn on :8000
