@@ -58,7 +58,8 @@ on the tracking server or `mlflow.db`.
 
 ## Quickstart
 
-Requires Python 3.12+ (developed on 3.14).
+Requires Python **3.12** — the version CI runs and the image ships, and therefore the
+only one this project is actually tested on.
 
 ```bash
 python -m venv .venv
@@ -204,6 +205,11 @@ for this data rather than measuring the served champion.
 ## Training and the model registry
 
 Tracking and the registry are backed by the SQLite file `mlflow.db` in the repo root.
+It is **not** in version control — `mlflow.db`, `mlruns/`, and `logs/` are all
+gitignored, because the database records absolute `storage_location` paths for whichever
+checkout created it and is meaningless anywhere else. A fresh clone has no registry until
+`python train.py` creates one; the service does not need it, since the champion is
+already exported into `model_artifact/`.
 A database backend is required — the default file store cannot host a model registry.
 `train.py` and `export_model.py` talk to that file directly; the UI is only for
 browsing and for moving the alias:
@@ -360,8 +366,8 @@ tests/test_api.py    API tests against the real artefact
 .github/workflows/ci.yml   CI: pytest on 3.12, then a Docker build
 model_artifact/      Exported champion (v6, skops) — baked into the image
 docs/tradeoff.png    Precision/recall/F1 curve referenced from Configuration
-mlruns/, mlflow.db   Local MLflow tracking + registry state
-logs/predictions.jsonl   Append-only prediction log
+mlruns/, mlflow.db   Local MLflow tracking + registry state (gitignored)
+logs/predictions.jsonl   Append-only prediction log (gitignored)
 Dockerfile           python:3.12-slim + uvicorn on :8000
 ```
 
@@ -381,6 +387,13 @@ directory, which is exactly why the artefact is baked into the image — but the
 itself cannot be moved, mounted into a container, or shared with another machine
 without rewriting those paths. Retraining and re-exporting only work from this checkout
 at this path. A remote tracking server with an S3 or GCS artifact root is the real fix.
+
+Because that state is worthless to anyone else — and because the paths embedded in it
+disclose a local filesystem layout — `mlflow.db` and `mlruns/` are gitignored rather
+than committed. They were tracked initially, which put roughly 30 MB of run artefacts
+and 23 hard-coded `/Users/...` paths into the repository's history; removing them from
+the index stops it growing, but the blobs remain in past commits and only a history
+rewrite would remove them.
 
 **The prediction log blocks the request.** `/predict` opens, appends to, and closes
 `logs/predictions.jsonl` synchronously inside the handler, so every scoring request
